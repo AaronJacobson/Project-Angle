@@ -10,6 +10,7 @@
 #include <SFML/Graphics.hpp>
 #include <SFML/Graphics/Sprite.hpp>
 #include <SFML/Window/Keyboard.hpp>
+#include <iostream>
 #include "String"
 using namespace std;
 
@@ -26,14 +27,16 @@ struct Actor{
 };
 
 struct Bullet{
+	sf::Sprite SPRITE;
 	Team TEAM;
 	Direction DIRECTION;
 };
 
+
 struct Tile{
 	int LOCATION_X;
 	int LOCATION_Y;
-	Actor ACTOR;
+	Actor * ACTOR = NULL;
 	Bullet BULLET;
 	bool WALL;
 };
@@ -61,7 +64,7 @@ sf::Texture ENEMY_BULLET_HORIZONTAL;
 sf::Texture WALL;
 
 Actor PLAYER;
-
+sf::Sprite WALL_SPRITE;
 void loadTextures(){
 	PLAYER_NORTH.loadFromFile("Game Art\\Player Art\\Finished Art\\Player North.png");
 	PLAYER_EAST.loadFromFile("Game Art\\Player Art\\Finished Art\\Player East.png");
@@ -76,89 +79,99 @@ void loadTextures(){
 	PLAYER_BULLET_VERTICAL.loadFromFile("Game Art\\Bullet Art\\Finished Player Bullets\\Player Bullet Vertical.png");
 	PLAYER_BULLET_HORIZONTAL.loadFromFile("Game Art\\Bullet Art\\Finished Player Bullets\\Player Bullet Horizontal.png");
 
-	//ENEMY_BULLET_VERTICAL.loadFromFile("Game Art\\Bullet Art\\Finished Enemy Bullets\\Enemy Bullet Vertical.png"); need to make the file into a png
-	//ENEMY_BULLET_HORIZONTAL.loadFromFile("Game Art\\Bullet Art\\Finished Enemy Bullets\\Enemy Bullet Horizontal.png"); need to make the file into a png
+	ENEMY_BULLET_VERTICAL.loadFromFile("Game Art\\Bullet Art\\Finished Enemy Bullets\\Enemy Bullet Vertical.png");
+	ENEMY_BULLET_HORIZONTAL.loadFromFile("Game Art\\Bullet Art\\Finished Enemy Bullets\\Enemy Bullet Horizontal.png");
 
 	WALL.loadFromFile("Game Art\\Wall Art\\Wall.png");
+	WALL_SPRITE.setTexture(WALL);
 }
 
-void makeActor(int x, int y, int health,Direction direction,Team team){
-	Actor toAdd;
-	toAdd.LOCATION_X = x;
-	toAdd.LOCATION_Y = y;
-	toAdd.HEALTH = health;
-	toAdd.DIRECTION = direction;
-	toAdd.TEAM = team;
-	sf::Texture texture;
-	if (team == BLUE){
-		if (direction == NORTH){
-			toAdd.SPRITE.setTexture(PLAYER_NORTH);
-		}
-		else if (direction == EAST){
-			toAdd.SPRITE.setTexture(PLAYER_EAST);
-		}
-		else if (direction == SOUTH){
-			toAdd.SPRITE.setTexture(PLAYER_SOUTH);
-		}
-		else if (direction == WEST){
-			toAdd.SPRITE.setTexture(PLAYER_WEST);
-		}
-	}
-	else if (team == RED){
-		if (direction == NORTH){
-			toAdd.SPRITE.setTexture(ENEMY_NORTH);
-		}
-		else if (direction == EAST){
-			toAdd.SPRITE.setTexture(ENEMY_EAST);
-		}
-		else if (direction == SOUTH){
-			toAdd.SPRITE.setTexture(ENEMY_SOUTH);
-		}
-		else if (direction == WEST){
-			toAdd.SPRITE.setTexture(ENEMY_WEST);
-		}
-	}
+void placeActor(Actor* actor){
+	GAME_BOARD[actor->LOCATION_X][actor->LOCATION_Y].ACTOR = actor;
 }
 
-void updateTexture(){
 
+
+void updateTexture(Actor* actor){
+	actor->SPRITE.setPosition((actor->LOCATION_X - 1) * 50, (actor->LOCATION_Y - 1) * 50);
+	if (actor->DIRECTION == NORTH){
+		actor->SPRITE.setTexture(PLAYER_NORTH);
+		cout << "NORTH\n";
+	}
+	else if (actor->DIRECTION == EAST){
+		actor->SPRITE.setTexture(PLAYER_EAST);
+		cout << "EAST\n";
+	}
+	else if (actor->DIRECTION == SOUTH){
+		actor->SPRITE.setTexture(PLAYER_SOUTH);
+		cout << "SOUTH\n";
+	}
+	else if (actor->DIRECTION == WEST){
+		actor->SPRITE.setTexture(PLAYER_WEST);
+		cout << "WEST\n";
+	}
 }
 
 bool isValidMove(Tile tile){
-	if (tile.LOCATION_X > 0 && tile.LOCATION_X <= BOARD_SIZE && tile.LOCATION_Y > 0 && tile.LOCATION_Y <= BOARD_SIZE){
-		if (!tile.WALL && tile.ACTOR.EXISTS){
-			if (tile.BULLET.TEAM != NULL){//they will walk into the bullet
-				return false;
-			}
-			else{//there is no bullet
+	if ((tile.LOCATION_X >= 0 && tile.LOCATION_X <= BOARD_SIZE) && (tile.LOCATION_Y >= 0 && tile.LOCATION_Y <= BOARD_SIZE)){
+		if (tile.ACTOR == NULL){
+			return true;
+			if (!tile.WALL && tile.ACTOR->EXISTS){
+				//if (tile.BULLET.TEAM != NULL){//they will walk into the bullet
+				//	return false;
+				//}
+				//else{//there is no bullet
+				//	return true;
+				//}
 				return true;
 			}
 		}
+		else{
+			cout << "The actor is not null\n";
+			return false;
+		}
+	}
+	else{
+		cout << tile.LOCATION_X << " " << tile.LOCATION_Y << endl;
 	}
 	return false;
 }
 
-bool moveThis(Tile tile, Actor actor){
-	if (isValidMove(tile)){
-		actor.LOCATION_X = tile.LOCATION_X;
-		actor.LOCATION_Y = tile.LOCATION_Y;
-		tile.ACTOR = actor;
+bool moveThis(Tile* tile, Actor actor){
+	if (isValidMove(*tile)){
+		actor.SPRITE.setPosition(tile->LOCATION_X, tile->LOCATION_Y);
+		tile->ACTOR = &actor;
+		updateTexture(&actor);
+		cout << "moved\n";
 		return true;
 	}
+	cout << "Can't move there\n";
 	return false;
 }
 void checkKeyboardInputs(){
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::A)){
-		//PLAYER_SPRITE.setTexture(PLAYER_WEST);
+		cout << "Moving west\n";
+		PLAYER.DIRECTION = WEST;
+		moveThis(&GAME_BOARD[PLAYER.LOCATION_X - 1][PLAYER.LOCATION_Y], PLAYER);
+		//PLAYER.SPRITE.setTexture(PLAYER_WEST);
 	}
 	else if (sf::Keyboard::isKeyPressed(sf::Keyboard::W)){
-		//PLAYER_SPRITE.setTexture(PLAYER_NORTH);
+		cout << "Moving north\n";
+		PLAYER.DIRECTION = NORTH;
+		moveThis(&GAME_BOARD[PLAYER.LOCATION_X][PLAYER.LOCATION_Y-1], PLAYER);
+		//PLAYER.SPRITE.setTexture(PLAYER_NORTH);
 	}
 	else if (sf::Keyboard::isKeyPressed(sf::Keyboard::S)){
-		//PLAYER_SPRITE.setTexture(PLAYER_SOUTH);
+		cout << "Moving south\n";
+		PLAYER.DIRECTION = SOUTH;
+		moveThis(&GAME_BOARD[PLAYER.LOCATION_X][PLAYER.LOCATION_Y+1], PLAYER);
+		//PLAYER.SPRITE.setTexture(PLAYER_SOUTH);
 	}
 	else if (sf::Keyboard::isKeyPressed(sf::Keyboard::D)){
-		//PLAYER_SPRITE.setTexture(PLAYER_EAST);
+		cout << "Moving east\n";
+		PLAYER.DIRECTION = EAST;
+		moveThis(&GAME_BOARD[PLAYER.LOCATION_X + 1][PLAYER.LOCATION_Y], PLAYER);
+		//PLAYER.SPRITE.setTexture(PLAYER_EAST);
 	}
 	else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Space)){
 
@@ -169,9 +182,26 @@ void checkKeyboardInputs(){
 void drawEverything(){
 	for (int currentRow = 0; currentRow < BOARD_SIZE; currentRow++){
 		for (int currentCol = 0; currentCol < BOARD_SIZE; currentCol++){
-			if (GAME_BOARD[currentRow][currentCol].WALL){
-
+			if (GAME_BOARD[currentRow][currentCol].WALL){//it's a wall
+				WALL_SPRITE.setPosition(currentRow, currentCol);
+				WINDOW.draw(WALL_SPRITE);
 			}
+			else{//it's a bullet
+			}
+			if (GAME_BOARD[currentRow][currentCol].ACTOR != NULL){
+				if (GAME_BOARD[currentRow][currentCol].ACTOR->EXISTS){//it's an actor
+
+					WINDOW.draw(GAME_BOARD[currentRow][currentCol].ACTOR->SPRITE);
+				}
+			}
+		}
+	}
+}
+
+void makeNull(){
+	for (int currentRow = 0; currentRow < BOARD_SIZE; currentRow++){
+		for (int currentCol = 0; currentCol < BOARD_SIZE; currentCol++){
+			GAME_BOARD[currentRow][currentCol].ACTOR = NULL;
 		}
 	}
 }
@@ -179,7 +209,14 @@ void drawEverything(){
 int main()
 {
 	loadTextures();
-
+	PLAYER.SPRITE.setTexture(PLAYER_NORTH);
+	makeNull();
+	PLAYER.DIRECTION = NORTH;
+	PLAYER.EXISTS = true;
+	PLAYER.LOCATION_X = 1;
+	PLAYER.LOCATION_Y = 4;
+	PLAYER.TEAM = BLUE;
+	GAME_BOARD[1][4].ACTOR = &PLAYER;
 	while (WINDOW.isOpen())
 	{
 		sf::Event event;
@@ -191,6 +228,7 @@ int main()
 		checkKeyboardInputs();
 		WINDOW.clear();
 		//draw everything here
+		drawEverything();
 		WINDOW.display();
 	}
 
