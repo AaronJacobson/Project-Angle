@@ -11,6 +11,7 @@
 #include <SFML/Graphics/Sprite.hpp>
 #include <SFML/Window/Keyboard.hpp>
 #include <iostream>
+#include <queue>
 #include "String"
 using namespace std;
 
@@ -23,13 +24,14 @@ struct Actor{
 	int LOCATION_Y;
 	Team TEAM;
 	Direction DIRECTION;
+	bool MOVED = false;
 	sf::Sprite SPRITE;
 };
 
 struct Bullet{
 	int LOCATION_X;
 	int LOCATION_Y;
-	bool hasMoved = false;
+	bool MOVED = false;
 	Team TEAM;
 	Direction DIRECTION;
 	sf::Sprite SPRITE;
@@ -47,10 +49,17 @@ struct Tile{
 	Bullet *BULLET;
 	Wall *WALL;
 };
+struct Node{
+	Node * CONNECTIONS[4] = { nullptr, nullptr, nullptr, nullptr };
+	int WEIGHT = -2;
+	int LOCATION_X;
+	int LOCATION_Y;
+};
 
 const int BOARD_SIZE = 11;
 const int TILE_SIZE = 50;
 Tile GAME_BOARD[BOARD_SIZE][BOARD_SIZE];
+Node NODE_MAP[BOARD_SIZE][BOARD_SIZE];
 sf::RenderWindow WINDOW(sf::VideoMode(BOARD_SIZE * TILE_SIZE, BOARD_SIZE * TILE_SIZE), "Project Angle");
 sf::Clock CLOCK;
 bool hasInput = false;
@@ -101,6 +110,47 @@ void initPlayer(){
 	PLAYER.TEAM = BLUE;
 	PLAYER.SPRITE.setTexture(PLAYER_NORTH_TEXTURE);
 	GAME_BOARD[PLAYER.LOCATION_Y][PLAYER.LOCATION_X].ACTOR = &PLAYER;
+}
+
+void createConnections(Node * node){
+	int connectionNumber = 0;
+	if (node->LOCATION_X - 1 < 0){
+		if (GAME_BOARD[node->LOCATION_Y][node->LOCATION_X - 1].WALL != nullptr){
+			node->CONNECTIONS[connectionNumber] = &NODE_MAP[node->LOCATION_Y][node->LOCATION_X - 1];
+			connectionNumber++;
+		}
+	}
+	if (node->LOCATION_X + 1 >= BOARD_SIZE){
+		if (GAME_BOARD[node->LOCATION_Y][node->LOCATION_X + 1].WALL != nullptr){
+			node->CONNECTIONS[connectionNumber] = &NODE_MAP[node->LOCATION_Y][node->LOCATION_X + 1];
+			connectionNumber++;
+		}
+	}
+	if (node->LOCATION_Y - 1 < 0){
+		if (GAME_BOARD[node->LOCATION_Y - 1][node->LOCATION_X].WALL != nullptr){
+			node->CONNECTIONS[connectionNumber] = &NODE_MAP[node->LOCATION_Y - 1][node->LOCATION_X];
+			connectionNumber++;
+		}
+	}
+	if (node->LOCATION_Y + 1 >= BOARD_SIZE){
+		if (GAME_BOARD[node->LOCATION_Y + 1][node->LOCATION_X].WALL != nullptr){
+			node->CONNECTIONS[connectionNumber] = &NODE_MAP[node->LOCATION_Y + 1][node->LOCATION_X];
+			connectionNumber++;
+		}
+	}
+}
+
+void initNodeMap(){
+	for (int row = 0; row < BOARD_SIZE; row++){
+		for (int col = 0; col < BOARD_SIZE; col++){
+			if (GAME_BOARD[row][col].WALL != nullptr){
+				NODE_MAP[row][col].WEIGHT = -1;
+				NODE_MAP[row][col].LOCATION_X = col;
+				NODE_MAP[row][col].LOCATION_Y = row;
+				createConnections(&NODE_MAP[row][col]);
+			}
+		}
+	}
 }
 
 bool isValidTile(int x, int y){
@@ -187,6 +237,18 @@ void updateActorTexture(Actor *actor){
 	actor->SPRITE.setPosition(actor->LOCATION_X * TILE_SIZE, actor->LOCATION_Y * TILE_SIZE);
 }
 
+void moveEnemy(Actor * actor){
+
+}
+
+void moveEnemies(){
+	for (int row = 0; row < BOARD_SIZE; row++){
+		for (int col = 0; col < BOARD_SIZE; col++){
+			
+		}
+	}
+}
+
 bool isValidMove(int y,int x){
 	if (x < 0 || x >= BOARD_SIZE || y < 0 || y >= BOARD_SIZE){
 		//cout << "Not a valid location. " << x << " " << y << endl;
@@ -228,7 +290,7 @@ void makeBullet(Tile *tile, int x, int y, Team team, Direction direction){
 			tile->BULLET->SPRITE.setPosition(x*TILE_SIZE+5, y*TILE_SIZE + 15);
 		}
 	}
-	tile->BULLET->hasMoved = false;
+	tile->BULLET->MOVED = false;
 }
 
 void moveBullet(Tile *tileFrom, Tile *tileTo){
@@ -290,9 +352,9 @@ void moveBullets(){
 	for (int currentRow = 0; currentRow < BOARD_SIZE; currentRow++){
 		for (int currentCol = 0; currentCol < BOARD_SIZE; currentCol++){
 			if (GAME_BOARD[currentRow][currentCol].BULLET != nullptr){
-				if (!GAME_BOARD[currentRow][currentCol].BULLET->hasMoved){
+				if (!GAME_BOARD[currentRow][currentCol].BULLET->MOVED){
 					cout << "Moving a bullet\n";
-					GAME_BOARD[currentRow][currentCol].BULLET->hasMoved = true;
+					GAME_BOARD[currentRow][currentCol].BULLET->MOVED = true;
 					if (GAME_BOARD[currentRow][currentCol].BULLET->DIRECTION == NORTH){
 						isValidBulletMove(currentRow - 1, currentCol,GAME_BOARD[currentRow][currentCol].BULLET);
 					}
@@ -312,24 +374,29 @@ void moveBullets(){
 }
 
 void fireBullet(){
-	if (PLAYER.DIRECTION == NORTH){
-		if (isValidTile(PLAYER.LOCATION_X, PLAYER.LOCATION_Y - 1)){
-			makeBullet(&GAME_BOARD[PLAYER.LOCATION_Y - 1][PLAYER.LOCATION_X], PLAYER.LOCATION_X, PLAYER.LOCATION_Y - 1, BLUE, NORTH);
+
+}
+
+void setActorTurns(bool toSet){
+	for (int row = 0; row < BOARD_SIZE; row++){
+		for (int col = 0; col < BOARD_SIZE; col++){
+			if (GAME_BOARD[row][col].ACTOR != nullptr){
+				if (GAME_BOARD[row][col].ACTOR != &PLAYER){
+					GAME_BOARD[row][col].ACTOR->MOVED = toSet;
+				}
+			}
 		}
 	}
-	else if (PLAYER.DIRECTION == EAST){
-		if (isValidTile(PLAYER.LOCATION_X + 1, PLAYER.LOCATION_Y)){
-			makeBullet(&GAME_BOARD[PLAYER.LOCATION_Y][PLAYER.LOCATION_X + 1], PLAYER.LOCATION_X + 1, PLAYER.LOCATION_Y, BLUE, EAST);
-		}
-	}
-	else if (PLAYER.DIRECTION == SOUTH){
-		if (isValidTile(PLAYER.LOCATION_X, PLAYER.LOCATION_Y + 1)){
-			makeBullet(&GAME_BOARD[PLAYER.LOCATION_X + 1][PLAYER.LOCATION_X], PLAYER.LOCATION_X, PLAYER.LOCATION_Y + 1, BLUE, SOUTH);
-		}
-	}
-	else if (PLAYER.DIRECTION == WEST){
-		if (isValidTile(PLAYER.LOCATION_X - 1, PLAYER.LOCATION_Y)){
-			makeBullet(&GAME_BOARD[PLAYER.LOCATION_Y][PLAYER.LOCATION_X - 1], PLAYER.LOCATION_X - 1, PLAYER.LOCATION_Y, BLUE, WEST);
+}
+
+void runAITurns(){
+	setActorTurns(false);
+	for (int row = 0; row < BOARD_SIZE; row++){
+		for (int col = 0; col < BOARD_SIZE; col++){
+			if (GAME_BOARD[row][col].ACTOR != nullptr){
+				GAME_BOARD[row][col].ACTOR->MOVED = true;
+
+			}
 		}
 	}
 }
@@ -360,6 +427,8 @@ void makeBoard(){
 	makeWall(&GAME_BOARD[3][6]);
 	makeWall(&GAME_BOARD[3][7]);
 	initPlayer();
+
+	initNodeMap();
 }
 void checkKeyboardInputs(){
 	int toMoveX = PLAYER.LOCATION_X;
@@ -439,6 +508,7 @@ void deAllocateEverything(){
 
 int main()
 {
+	makeActor(&GAME_BOARD[5][5], 5, 5, RED, NORTH);
 	loadTextures();
 	makeBoard();
 	drawEverything();
