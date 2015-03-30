@@ -10,9 +10,12 @@
 #include <SFML/Graphics.hpp>
 #include <SFML/Graphics/Sprite.hpp>
 #include <SFML/Window/Keyboard.hpp>
+#include <list>
 #include <iostream>
 #include <queue>
 #include "String"
+#include "list.h"
+#include <math.h>
 using namespace std;
 
 enum Team{BLUE,RED};
@@ -50,11 +53,20 @@ struct Tile{
 	Wall *WALL;
 };
 struct Node{
-	Node * CONNECTIONS[4] = { nullptr, nullptr, nullptr, nullptr };
-	int WEIGHT = -2;
+	Node* CONNECTIONS[4];
+	int DISTANCE = -2;
 	int LOCATION_X;
 	int LOCATION_Y;
 };
+
+struct LinkedNode{
+	Node DATA;
+	LinkedNode * NEXT;
+};
+
+LinkedNode NEW_NODE;
+LinkedNode TEMP_NODE;
+LinkedNode HEAD_NODE;
 
 const int BOARD_SIZE = 11;
 const int TILE_SIZE = 50;
@@ -87,6 +99,7 @@ sf::Texture WALL_TEXTURE;
 Actor PLAYER;
 void loadTextures(){
 	PLAYER_NORTH_TEXTURE.loadFromFile("Game Art\\Player Art\\Finished Art\\Player North.png");
+	PLAYER_NORTH_TEXTURE.loadFromFile("Game Art\\Player Art\\Finished Art\\Player North.png");
 	PLAYER_EAST_TEXTURE.loadFromFile("Game Art\\Player Art\\Finished Art\\Player East.png");
 	PLAYER_SOUTH_TEXTURE.loadFromFile("Game Art\\Player Art\\Finished Art\\Player South.png");
 	PLAYER_WEST_TEXTURE.loadFromFile("Game Art\\Player Art\\Finished Art\\Player West.png");
@@ -113,6 +126,9 @@ void initPlayer(){
 }
 
 void createConnections(Node * node){
+	for (int i = 0; i < 4; i++){
+		node->CONNECTIONS[i] = nullptr;
+	}
 	int connectionNumber = 0;
 	if (node->LOCATION_X - 1 < 0){
 		if (GAME_BOARD[node->LOCATION_Y][node->LOCATION_X - 1].WALL != nullptr){
@@ -144,7 +160,7 @@ void initNodeMap(){
 	for (int row = 0; row < BOARD_SIZE; row++){
 		for (int col = 0; col < BOARD_SIZE; col++){
 			if (GAME_BOARD[row][col].WALL != nullptr){
-				NODE_MAP[row][col].WEIGHT = -1;
+				NODE_MAP[row][col].DISTANCE = -1;
 				NODE_MAP[row][col].LOCATION_X = col;
 				NODE_MAP[row][col].LOCATION_Y = row;
 				createConnections(&NODE_MAP[row][col]);
@@ -237,14 +253,85 @@ void updateActorTexture(Actor *actor){
 	actor->SPRITE.setPosition(actor->LOCATION_X * TILE_SIZE, actor->LOCATION_Y * TILE_SIZE);
 }
 
-void moveEnemy(Actor * actor){
+LinkedNode* accessLinkedListPlace(int place, LinkedNode * node){
+	if (place > 0){
+		return accessLinkedListPlace(place - 1, node->NEXT);
+	}
+	else if(node == 0)
+	{
+		return node;
+	}
+}
 
+void deAllocateLinkedList(LinkedNode* node){
+	if (node->NEXT != NULL){
+		deAllocateLinkedList(node->NEXT);
+	}
+}
+
+void moveEnemy(Actor * actor){
+	int distanceNorth = -1;
+	int distanceEast = -1;
+	int distanceSouth = -1;
+	int distanceWest = -1;
+	if (isValidTile(actor->LOCATION_X, actor->LOCATION_Y - 1)){
+		distanceNorth = sqrt(actor->LOCATION_X*actor->LOCATION_X + (actor->LOCATION_Y - 1) * (actor->LOCATION_Y - 1));
+	}
+	if (isValidTile(actor->LOCATION_X + 1, actor->LOCATION_Y)){
+		distanceEast = sqrt((actor->LOCATION_X + 1)*(actor->LOCATION_X + 1) + (actor->LOCATION_Y) * (actor->LOCATION_Y));
+	}
+	if (isValidTile(actor->LOCATION_X, actor->LOCATION_Y + 1)){
+		distanceEast = sqrt((actor->LOCATION_X)*(actor->LOCATION_X) + (actor->LOCATION_Y+1) * (actor->LOCATION_Y+1));
+	}
+	if (isValidTile(actor->LOCATION_X - 1, actor->LOCATION_Y)){
+		distanceEast = sqrt((actor->LOCATION_X - 1)*(actor->LOCATION_X - 1) + (actor->LOCATION_Y) * (actor->LOCATION_Y));
+	}
+	if (fmax(distanceNorth, distanceEast) == distanceNorth && fmax(distanceNorth,distanceSouth) == distanceNorth && fmax(distanceNorth,distanceWest) == distanceNorth){
+		if (isValidTile(actor->LOCATION_X, actor->LOCATION_Y-1)){
+			moveActor(actor, GAME_BOARD[actor->LOCATION_Y][actor->LOCATION_X - 1]);
+		}
+	}
+	else if (fmax(distanceEast, distanceSouth) == distanceEast && fmax(distanceEast, distanceWest) == distanceEast){
+		if (isValidTile(actor->LOCATION_X + 1, actor->LOCATION_Y)){
+			moveActor(actor, GAME_BOARD[actor->LOCATION_Y + 1][actor->LOCATION_X]);
+		}
+	}
+	else if (fmax(distanceSouth, distanceWest) == distanceSouth){
+		if (isValidTile(actor->LOCATION_X, actor->LOCATION_Y + 1)){
+			moveActor(actor, GAME_BOARD[actor->LOCATION_Y][actor->LOCATION_X + 1]);
+		}
+	}
+	else{
+		if (isValidTile(actor->LOCATION_X - 1, actor->LOCATION_Y)){
+			moveActor(actor, GAME_BOARD[actor->LOCATION_Y - 1][actor->LOCATION_X]);
+		}
+	}
+}
+
+void setActorTurns(bool toSet){
+	for (int row = 0; row < BOARD_SIZE; row++){
+		for (int col = 0; col < BOARD_SIZE; col++){
+			if (GAME_BOARD[row][col].ACTOR != nullptr){
+				if (GAME_BOARD[row][col].ACTOR != &PLAYER){
+					GAME_BOARD[row][col].ACTOR->MOVED = toSet;
+				}
+			}
+		}
+	}
 }
 
 void moveEnemies(){
+	setActorTurns(false);
 	for (int row = 0; row < BOARD_SIZE; row++){
 		for (int col = 0; col < BOARD_SIZE; col++){
-			
+			if (GAME_BOARD[row][col].ACTOR != nullptr){
+				if (GAME_BOARD[row][col].ACTOR->TEAM == RED){
+					if (!GAME_BOARD[row][col].ACTOR->MOVED){
+						GAME_BOARD[row][col].ACTOR->MOVED = true;
+						moveEnemy(GAME_BOARD[row][col].ACTOR);
+					}
+				}
+			}
 		}
 	}
 }
@@ -377,30 +464,6 @@ void fireBullet(){
 
 }
 
-void setActorTurns(bool toSet){
-	for (int row = 0; row < BOARD_SIZE; row++){
-		for (int col = 0; col < BOARD_SIZE; col++){
-			if (GAME_BOARD[row][col].ACTOR != nullptr){
-				if (GAME_BOARD[row][col].ACTOR != &PLAYER){
-					GAME_BOARD[row][col].ACTOR->MOVED = toSet;
-				}
-			}
-		}
-	}
-}
-
-void runAITurns(){
-	setActorTurns(false);
-	for (int row = 0; row < BOARD_SIZE; row++){
-		for (int col = 0; col < BOARD_SIZE; col++){
-			if (GAME_BOARD[row][col].ACTOR != nullptr){
-				GAME_BOARD[row][col].ACTOR->MOVED = true;
-
-			}
-		}
-	}
-}
-
 void makeWall(Tile *tile){
 	tile->WALL = new Wall();
 	tile->WALL->LOCATION_X = tile->LOCATION_X;
@@ -514,6 +577,13 @@ int main()
 	drawEverything();
 	while (WINDOW.isOpen())
 	{
+		sf::Event event;
+
+		while (WINDOW.pollEvent(event))
+		{
+			if (event.type == sf::Event::Closed)
+				WINDOW.close();
+		}
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::Escape)){
 			cout << "Pressed escape\n";
 			WINDOW.close();
@@ -521,7 +591,10 @@ int main()
 			return 0;
 		}
 		moveBullets();
+		moveEnemies();
 		while (!hasInput){
+			if (event.type == sf::Event::Closed)
+				WINDOW.close();
 			deltaTime = CLOCK.getElapsedTime().asMilliseconds();
 			if (deltaTime >= 75){
 				checkKeyboardInputs();
@@ -529,13 +602,6 @@ int main()
 			}
 		}
 		hasInput = false;
-
-		sf::Event event;
-		while (WINDOW.pollEvent(event))
-		{
-			if (event.type == sf::Event::Closed)
-				WINDOW.close();
-		}
 		WINDOW.clear();
 		//draw everything here
 		drawEverything();
